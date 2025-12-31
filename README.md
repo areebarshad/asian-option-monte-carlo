@@ -4,9 +4,9 @@ A high-performance Python simulation engine that calculates the fair value of **
 
 ## What is this project?
 
-In layman terms: **This is a calculator for a complex financial contract where no simple formula exists.**
-Standard European options depend on the stock price at the very end of the year, and can be calculated using the Black-Scholes formula.
-Meanwhile Asian options are different as their payoff depends on the **average** stock price over the entire year. As the average depends on the whole path, there is no simple formula to price them. Therefore, we have to simulate thousands of possible futures to find the answer.
+- In layman terms: **This is a calculator for a complex financial contract where no simple formula exists.**
+- Standard European options depend on the stock price at the very end of the year, and can be calculated using the Black-Scholes formula.
+- Meanwhile Asian options are different as their payoff depends on the **average** stock price over the entire year. As the average depends on the whole path, there is no simple formula to price them. Therefore, we have to simulate thousands of possible futures to find the answer.
 
 ## Key Features:
 
@@ -74,4 +74,4 @@ The most critical metric is the **Efficiency Gain**.
 **My Engine**: Achieved this precision with only **100,000 simulations**, making the code **~1,291 times more efficient** than a standard implementation.
 
 
-## Areeb Arshad | Virginia Tech | Data Science and Statistics  
+### Areeb Arshad | Virginia Tech | Data Science and Statistics  
