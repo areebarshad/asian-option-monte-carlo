@@ -14,6 +14,11 @@ from typing import Tuple, Dict
 from dataclasses import dataclass
 from scipy import stats
 import time
+import matplotlib.pyplot as plt
+
+# Set plotting style
+plt.rcParams['figure.figsize'] = (12, 8)
+plt.rcParams['font.size'] = 10
 
 
 @dataclass
@@ -446,6 +451,276 @@ class AsianOptionPricer:
         print(f"To achieve the same accuracy as CV with {self.params.I:,} simulations,")
         print(f"Crude MC would require {int(self.params.I * (crude_se/cv_se)**2):,} simulations")
         print("=" * 80)
+    
+    def plot_sample_paths(self, n_paths: int = 50, save_fig: bool = False) -> None:
+        """
+        Plot sample price paths to visualize the GBM simulation.
+        
+        Args:
+            n_paths: Number of paths to display
+            save_fig: Whether to save figure to disk
+        """
+        fig, ax = plt.subplots(figsize=(12, 7))
+        
+        time_grid = np.linspace(0, self.params.T, self.params.M + 1)
+        
+        # Plot sample paths
+        for i in range(min(n_paths, self.params.I)):
+            ax.plot(time_grid, self.paths[:, i], alpha=0.3, linewidth=0.8, color='steelblue')
+        
+        # Plot mean path
+        mean_path = np.mean(self.paths, axis=1)
+        ax.plot(time_grid, mean_path, 'r-', linewidth=2.5, label='Mean Path', zorder=5)
+        
+        # Add strike line
+        ax.axhline(y=self.params.K, color='green', linestyle='--', 
+                   linewidth=2, label=f'Strike K={self.params.K}', zorder=5)
+        
+        ax.set_xlabel('Time (years)', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Asset Price ($)', fontsize=12, fontweight='bold')
+        ax.set_title(f'Geometric Brownian Motion: {n_paths} Sample Paths\n'
+                    f'S₀=${self.params.S0}, μ={self.params.r:.1%}, σ={self.params.sigma:.1%}',
+                    fontsize=14, fontweight='bold', pad=20)
+        ax.legend(loc='best', fontsize=11, framealpha=0.9)
+        ax.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        if save_fig:
+            plt.savefig('gbm_paths.png', dpi=300, bbox_inches='tight')
+        plt.show()
+    
+    def plot_averaging_comparison(self, save_fig: bool = False) -> None:
+        """
+        Compare arithmetic vs geometric averages across all paths.
+        
+        Args:
+            save_fig: Whether to save figure to disk
+        """
+        arith_avg = self.compute_arithmetic_average()
+        geom_avg = self.compute_geometric_average()
+        
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        
+        # Scatter plot
+        axes[0].scatter(geom_avg, arith_avg, alpha=0.3, s=10, color='steelblue')
+        axes[0].plot([geom_avg.min(), geom_avg.max()], 
+                     [geom_avg.min(), geom_avg.max()], 
+                     'r--', linewidth=2, label='y=x')
+        axes[0].set_xlabel('Geometric Average', fontsize=12, fontweight='bold')
+        axes[0].set_ylabel('Arithmetic Average', fontsize=12, fontweight='bold')
+        axes[0].set_title('Arithmetic vs Geometric Average\n(AM-GM Inequality)', 
+                         fontsize=13, fontweight='bold')
+        axes[0].legend(fontsize=10)
+        axes[0].grid(True, alpha=0.3)
+        
+        # Distribution plot
+        axes[1].hist(arith_avg, bins=50, alpha=0.6, label='Arithmetic', 
+                    color='steelblue', edgecolor='black', density=True)
+        axes[1].hist(geom_avg, bins=50, alpha=0.6, label='Geometric', 
+                    color='coral', edgecolor='black', density=True)
+        axes[1].axvline(self.params.K, color='green', linestyle='--', 
+                       linewidth=2, label=f'Strike K={self.params.K}')
+        axes[1].set_xlabel('Average Value', fontsize=12, fontweight='bold')
+        axes[1].set_ylabel('Density', fontsize=12, fontweight='bold')
+        axes[1].set_title('Distribution of Averages', fontsize=13, fontweight='bold')
+        axes[1].legend(fontsize=10)
+        axes[1].grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        if save_fig:
+            plt.savefig('averaging_comparison.png', dpi=300, bbox_inches='tight')
+        plt.show()
+    
+    def plot_convergence_analysis(self, n_points: int = 20, save_fig: bool = False) -> None:
+        """
+        Analyze convergence of both MC methods as sample size increases.
+        
+        Args:
+            n_points: Number of points for convergence plot
+            save_fig: Whether to save figure to disk
+        """
+        print("\n" + "=" * 80)
+        print("RUNNING CONVERGENCE ANALYSIS")
+        print("=" * 80)
+        
+        sample_sizes = np.logspace(2, np.log10(self.params.I), n_points, dtype=int)
+        
+        crude_prices = []
+        crude_errors = []
+        cv_prices = []
+        cv_errors = []
+        
+        arith_payoff, geom_payoff = self.compute_payoffs()
+        Y = self.discount_factor * arith_payoff
+        X = self.discount_factor * geom_payoff
+        mu_X = self.analytical_geometric_asian()
+        
+        # Compute beta once
+        covariance = np.cov(Y, X)[0, 1]
+        variance_X = np.var(X, ddof=1)
+        beta = covariance / variance_X
+        
+        print(f"Computing convergence for {n_points} sample sizes...")
+        
+        for i, n in enumerate(sample_sizes):
+            # Crude MC
+            crude_sample = Y[:n]
+            crude_prices.append(np.mean(crude_sample))
+            crude_errors.append(np.std(crude_sample, ddof=1) / np.sqrt(n))
+            
+            # Control Variate
+            Y_cv_sample = Y[:n] - beta * (X[:n] - mu_X)
+            cv_prices.append(np.mean(Y_cv_sample))
+            cv_errors.append(np.std(Y_cv_sample, ddof=1) / np.sqrt(n))
+            
+            if (i + 1) % 5 == 0:
+                print(f"  Progress: {i+1}/{n_points} complete")
+        
+        # Create convergence plot
+        fig, axes = plt.subplots(2, 1, figsize=(14, 10))
+        
+        # Price convergence
+        axes[0].plot(sample_sizes, crude_prices, 'o-', linewidth=2, 
+                    markersize=6, label='Crude MC', color='steelblue')
+        axes[0].plot(sample_sizes, cv_prices, 's-', linewidth=2, 
+                    markersize=6, label='Control Variate', color='coral')
+        axes[0].axhline(y=crude_prices[-1], color='gray', linestyle='--', 
+                       linewidth=1.5, alpha=0.7, label='Final Estimate')
+        axes[0].set_xscale('log')
+        axes[0].set_xlabel('Number of Simulations', fontsize=12, fontweight='bold')
+        axes[0].set_ylabel('Option Price ($)', fontsize=12, fontweight='bold')
+        axes[0].set_title('Price Convergence Analysis', fontsize=14, fontweight='bold', pad=15)
+        axes[0].legend(fontsize=11, loc='best')
+        axes[0].grid(True, alpha=0.3, which='both')
+        
+        # Standard error convergence
+        axes[1].plot(sample_sizes, crude_errors, 'o-', linewidth=2, 
+                    markersize=6, label='Crude MC', color='steelblue')
+        axes[1].plot(sample_sizes, cv_errors, 's-', linewidth=2, 
+                    markersize=6, label='Control Variate', color='coral')
+        
+        # Add theoretical 1/sqrt(n) line
+        theoretical_line = crude_errors[0] * np.sqrt(sample_sizes[0]) / np.sqrt(sample_sizes)
+        axes[1].plot(sample_sizes, theoretical_line, '--', linewidth=2, 
+                    color='gray', alpha=0.7, label='Theoretical 1/√n')
+        
+        axes[1].set_xscale('log')
+        axes[1].set_yscale('log')
+        axes[1].set_xlabel('Number of Simulations', fontsize=12, fontweight='bold')
+        axes[1].set_ylabel('Standard Error ($)', fontsize=12, fontweight='bold')
+        axes[1].set_title('Standard Error Convergence (Log-Log Scale)', 
+                         fontsize=14, fontweight='bold', pad=15)
+        axes[1].legend(fontsize=11, loc='best')
+        axes[1].grid(True, alpha=0.3, which='both')
+        
+        plt.tight_layout()
+        if save_fig:
+            plt.savefig('convergence_analysis.png', dpi=300, bbox_inches='tight')
+        plt.show()
+        
+        print("✓ Convergence analysis complete\n")
+    
+    def plot_payoff_distribution(self, save_fig: bool = False) -> None:
+        """
+        Visualize the distribution of payoffs for both averaging methods.
+        
+        Args:
+            save_fig: Whether to save figure to disk
+        """
+        arith_payoff, geom_payoff = self.compute_payoffs()
+        Y = self.discount_factor * arith_payoff
+        X = self.discount_factor * geom_payoff
+        
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+        
+        # Arithmetic payoff distribution
+        axes[0, 0].hist(Y, bins=60, alpha=0.7, color='steelblue', 
+                       edgecolor='black', density=True)
+        axes[0, 0].axvline(np.mean(Y), color='red', linestyle='--', 
+                          linewidth=2, label=f'Mean = ${np.mean(Y):.4f}')
+        axes[0, 0].set_xlabel('Discounted Payoff ($)', fontsize=11, fontweight='bold')
+        axes[0, 0].set_ylabel('Density', fontsize=11, fontweight='bold')
+        axes[0, 0].set_title('Arithmetic Asian Payoff Distribution', 
+                            fontsize=12, fontweight='bold')
+        axes[0, 0].legend(fontsize=10)
+        axes[0, 0].grid(True, alpha=0.3)
+        
+        # Geometric payoff distribution
+        axes[0, 1].hist(X, bins=60, alpha=0.7, color='coral', 
+                       edgecolor='black', density=True)
+        axes[0, 1].axvline(np.mean(X), color='red', linestyle='--', 
+                          linewidth=2, label=f'Mean = ${np.mean(X):.4f}')
+        axes[0, 1].axvline(self.analytical_geometric_asian(), color='green', 
+                          linestyle=':', linewidth=2.5, 
+                          label=f'Analytical = ${self.analytical_geometric_asian():.4f}')
+        axes[0, 1].set_xlabel('Discounted Payoff ($)', fontsize=11, fontweight='bold')
+        axes[0, 1].set_ylabel('Density', fontsize=11, fontweight='bold')
+        axes[0, 1].set_title('Geometric Asian Payoff Distribution', 
+                            fontsize=12, fontweight='bold')
+        axes[0, 1].legend(fontsize=10)
+        axes[0, 1].grid(True, alpha=0.3)
+        
+        # Scatter plot of payoffs
+        axes[1, 0].scatter(X, Y, alpha=0.3, s=10, color='steelblue')
+        axes[1, 0].set_xlabel('Geometric Payoff ($)', fontsize=11, fontweight='bold')
+        axes[1, 0].set_ylabel('Arithmetic Payoff ($)', fontsize=11, fontweight='bold')
+        axes[1, 0].set_title(f'Payoff Correlation (ρ = {np.corrcoef(X, Y)[0,1]:.4f})', 
+                            fontsize=12, fontweight='bold')
+        axes[1, 0].grid(True, alpha=0.3)
+        
+        # Control variate adjustment visualization
+        mu_X = self.analytical_geometric_asian()
+        covariance = np.cov(Y, X)[0, 1]
+        variance_X = np.var(X, ddof=1)
+        beta = covariance / variance_X
+        Y_CV = Y - beta * (X - mu_X)
+        
+        axes[1, 1].hist(Y, bins=50, alpha=0.5, label='Original (Crude)', 
+                       color='steelblue', edgecolor='black', density=True)
+        axes[1, 1].hist(Y_CV, bins=50, alpha=0.5, label='Control Variate', 
+                       color='coral', edgecolor='black', density=True)
+        axes[1, 1].axvline(np.mean(Y), color='blue', linestyle='--', linewidth=2)
+        axes[1, 1].axvline(np.mean(Y_CV), color='red', linestyle='--', linewidth=2)
+        axes[1, 1].set_xlabel('Discounted Payoff ($)', fontsize=11, fontweight='bold')
+        axes[1, 1].set_ylabel('Density', fontsize=11, fontweight='bold')
+        axes[1, 1].set_title(f'Variance Reduction: {(1 - np.var(Y_CV)/np.var(Y))*100:.1f}%', 
+                            fontsize=12, fontweight='bold')
+        axes[1, 1].legend(fontsize=10)
+        axes[1, 1].grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        if save_fig:
+            plt.savefig('payoff_distributions.png', dpi=300, bbox_inches='tight')
+        plt.show()
+    
+    def create_comprehensive_report(self, save_figs: bool = False) -> None:
+        """
+        Generate all visualizations in one comprehensive report.
+        
+        Args:
+            save_figs: Whether to save all figures to disk
+        """
+        print("\n" + "=" * 80)
+        print("GENERATING COMPREHENSIVE VISUALIZATION REPORT")
+        print("=" * 80)
+        
+        print("\n[1/4] Plotting sample price paths...")
+        self.plot_sample_paths(n_paths=100, save_fig=save_figs)
+        
+        print("[2/4] Comparing averaging methods...")
+        self.plot_averaging_comparison(save_fig=save_figs)
+        
+        print("[3/4] Analyzing payoff distributions...")
+        self.plot_payoff_distribution(save_fig=save_figs)
+        
+        print("[4/4] Running convergence analysis...")
+        self.plot_convergence_analysis(n_points=15, save_fig=save_figs)
+        
+        print("\n" + "=" * 80)
+        print("✓ VISUALIZATION REPORT COMPLETE")
+        if save_figs:
+            print("✓ All figures saved to current directory")
+        print("=" * 80)
 
 
 def main():
@@ -491,6 +766,15 @@ def main():
     print(f"✓ Geometric avg range: [{pricer.compute_geometric_average().min():.2f}, "
           f"{pricer.compute_geometric_average().max():.2f}]")
     print(f"✓ Control variate bias: ${abs(results['cv_price'] - results['crude_price']):.6f}")
+    
+    # Generate comprehensive visualizations
+    print("\n" + "=" * 80)
+    print("Would you like to generate visualizations? (Recommended)")
+    print("=" * 80)
+    print("\nGenerating comprehensive visualization report...")
+    print("(Set save_figs=True to save plots to disk)")
+    
+    pricer.create_comprehensive_report(save_figs=False)
     
     return results
 
