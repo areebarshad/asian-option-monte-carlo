@@ -73,5 +73,4 @@ The most critical metric is the **Efficiency Gain**.
 **The Implication**: To achieve this same level of precision using the old method, you would need to run **129,155,607 simulations**. 
 **My Engine**: Achieved this precision with only **100,000 simulations**, making the code **~1,291 times more efficient** than a standard implementation.
 
-
 ### Areeb Arshad | Virginia Tech | Data Science and Statistics  
