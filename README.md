@@ -16,7 +16,7 @@ Meanwhile Asian options are different as their payoff depends on the **average**
   - *Fix*: We use a simpler option (Geometric Asian) with a known price to calibrate our simulation.
   - *The Result*: This reduces the error rate by **~99%**, giving us the same accuracy with far less computing power.
 
-## Mathematical Framework
+## Mathematical Framework:
 
 This engine leverages **Stochastic Calculus** and **Statistical Variance Reduction** to price the option.
 
@@ -59,7 +59,7 @@ $$\beta^* = \frac{Cov(Y, X)}{Var(X)}$$
 
 We ran the simulation with **100,000 paths** to compare the standard "Crude" Monte Carlo method against our "Control Variate" engine.
 
-### Simulation Results
+### Simulation Results:
 | Metric | Crude Monte Carlo | Control Variate Monte Carlo | Improvement |
 | :--- | :--- | :--- | :--- |
 | **Estimated Price** | $5.720 | **$5.642** | Converged to True Value |
@@ -72,3 +72,6 @@ The most critical metric is the **Efficiency Gain**.
 **The Result**: The Control Variate Monte Carlo method achieved a variance reduction factor of `0.0007`.
 **The Implication**: To achieve this same level of precision using the old method, you would need to run **129,155,607 simulations**. 
 **My Engine**: Achieved this precision with only **100,000 simulations**, making the code **~1,291 times more efficient** than a standard implementation.
+
+
+## Areeb Arshad | Virginia Tech | Data Science and Statistics  
