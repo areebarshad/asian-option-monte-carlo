@@ -144,18 +144,9 @@ Greeks are computed by bumping one parameter at a time and repricing:
 
 All bumped calls share the same random seed so the identical path matrix is reused — the common noise cancels in the difference quotient, yielding accurate numerical derivatives without inflating the simulation count.
 
-## Running Locally
-
-```bash
-pip install -r requirements.txt
-uvicorn api:app --reload
-```
-
-The API will be available at `http://localhost:8000`. Interactive docs are at `http://localhost:8000/docs`.
-
 ## Deployment
 
-The service deploys to [Render](https://render.com) via `render.yaml` (free tier, Python 3.11). Push to `main` and Render rebuilds automatically.
+The service deploys to [Render](https://render.com) via `render.yaml`.
 
 <br>
 
